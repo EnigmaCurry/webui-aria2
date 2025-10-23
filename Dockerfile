@@ -1,38 +1,42 @@
-FROM debian:8
+FROM debian:12
 
-# less priviledge user, the id should map the user the downloaded files belongs to
-RUN groupadd -r dummy && useradd -r -g dummy dummy -u 1000
+ARG UID=1000
+ARG GID=1000
 
-# webui + aria2
-RUN apt-get update \
-	&& apt-get install -y aria2 busybox curl \
-	&& rm -rf /var/lib/apt/lists/*
+RUN groupadd -g ${GID} -r dummy && \
+    useradd -r -g dummy -u ${UID} dummy
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates aria2 busybox curl gosu && \
+    rm -rf /var/lib/apt/lists/*
 
 ADD ./docs /webui-aria2
 
-# gosu install latest
-RUN GITHUB_REPO="https://github.com/tianon/gosu" \
-  && LATEST=`curl -s  $GITHUB_REPO"/releases/latest" | grep -Eo "[0-9].[0-9]*"` \
-  && curl -L $GITHUB_REPO"/releases/download/"$LATEST"/gosu-amd64" > /usr/local/bin/gosu \
-  && chmod +x /usr/local/bin/gosu
+RUN set -eux; \
+    REPO="https://github.com/mattn/goreman"; \
+    ARCH=$(uname -m); \
+    case "$ARCH" in \
+        x86_64)  ARCH=amd64 ;; \
+        aarch64) ARCH=arm64 ;; \
+        *) echo "❌ unsupported uname -m: $ARCH" >&2; exit 1 ;; \
+    esac; \
+    TAG=$(curl -fsSL "$REPO/releases/latest" | \
+          grep -Eo 'v[0-9]+\.[0-9]+\.[0-9]+' | head -n1); \
+    curl -fL "$REPO/releases/download/${TAG}/goreman_${TAG}_linux_${ARCH}.tar.gz" \
+         -o goreman.tar.gz; \
+    tar -xzf goreman.tar.gz && \
+    mv goreman*/goreman /usr/local/bin/ && \
+    rm -rf goreman* goreman.tar.gz
 
-# goreman supervisor install latest
-RUN GITHUB_REPO="https://github.com/mattn/goreman" \
-  && LATEST=`curl -s  $GITHUB_REPO"/releases/latest" | grep -Eo "v[0-9]*.[0-9]*.[0-9]*"` \
-  && curl -L $GITHUB_REPO"/releases/download/"$LATEST"/goreman_"$LATEST"_linux_amd64.tar.gz" > goreman.tar.gz \
-  && tar xvf goreman.tar.gz && mv /goreman*/goreman /usr/local/bin/goreman && rm -R goreman*
+RUN echo "web: gosu dummy /bin/busybox httpd -f -p 8080 -h /webui-aria2\n" \
+         "backend: gosu dummy /usr/bin/aria2c --enable-rpc --rpc-listen-all --dir=/data" \
+    > Procfile
 
-# goreman setup
-RUN echo "web: gosu dummy /bin/busybox httpd -f -p 8080 -h /webui-aria2\nbackend: gosu dummy /usr/bin/aria2c --enable-rpc --rpc-listen-all --dir=/data" > Procfile
-
-# aria2 downloads directory
+# -----------------------------------------------------------------
 VOLUME /data
+EXPOSE 6800 8080
 
-# aria2 RPC port, map as-is or reconfigure webui
-EXPOSE 6800/tcp
-
-# webui static content web server, map wherever is convenient
-EXPOSE 8080/tcp
-
+# -----------------------------------------------------------------
 CMD ["start"]
 ENTRYPOINT ["/usr/local/bin/goreman"]
