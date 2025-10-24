@@ -32,7 +32,7 @@ RUN set -eux; \
 ARG WEB_PORT=8081 RPC_PORT=6801
 ENV WEB_PORT=${WEB_PORT} RPC_PORT=${RPC_PORT}
 RUN echo "web: gosu dummy /bin/busybox httpd -f -p ${WEB_PORT} -h /webui-aria2\n" \
-         "backend: gosu dummy /usr/bin/aria2c --enable-rpc --rpc-listen-all --rpc-listen-port ${RPC_PORT} --dir=/data" \
+         "backend: gosu dummy /usr/bin/aria2c --enable-rpc --rpc-listen-all --rpc-listen-port ${RPC_PORT} --dir=/downloads" \
     > Procfile
 
 # -----------------------------------------------------------------
