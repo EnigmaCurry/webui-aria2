@@ -12,6 +12,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 ADD ./docs /webui-aria2
+ADD ./favicon.ico /webui-aria2
 
 RUN set -eux; \
     REPO="https://github.com/mattn/goreman"; \
